@@ -4,7 +4,7 @@ from .ext_txt import TextLoader
 from .ext_moss import MossLoader
 from .ext_sgpt import ShareGPTLoader
 from .ext_alpaca import AlpacaLoader
-from .ext_hf import HFLoader
+from .ext_hf import HuggingFaceFetcher
 from .uniset import Uniset
 
 __all__ = [
@@ -15,5 +15,5 @@ __all__ = [
     "MossLoader",
     "ShareGPTLoader",
     "AlpacaLoader",
-    "HFLoader"
+    "HuggingFaceFetcher",
 ]

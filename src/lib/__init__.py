@@ -1,3 +1,4 @@
 from .basepath import Basepath
+from .cfg import Config
 
-__all__ = ["Basepath"]
+__all__ = ["Basepath", "Config"]

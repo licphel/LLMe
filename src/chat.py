@@ -1,142 +1,152 @@
-import core
+import train as train
+import fetch as fetch
+import load as load
 
 
 def main():
     print("\n" + "=" * 50)
-    print("[!] LLMe chatting room")
-    print("[!] Use '/quit' to exit.")
-    print("[!] Use '/switch <Model Name>' to switch between models.")
-    print("[!] Use '/tdat local' to load all local data from data/")
-    print("[!] Use '/tdat hf <dataset>' to load data from HuggingFace")
-    print("[!] Use '/tdat clear' to clear cached data")
-    print("[!] Use '/tdat stats' to show data statistics")
-    print("[!] Use '/train <Model Name>' to train a new model.")
+    print("[!] LLMe CLI")
+    print("[!] '/quit' to exit.")
+    print("[!] '/switch <Model Name>' to switch between models.")
+    print("[!] '/load <Relative Path>' to load datasets.")
+    print("[!] '/clear' to clear cached data.")
+    print("[!] '/train <Model Name>' to train a new model.")
+    print(
+        "[!] '/resume <Model Name> [Epochs]' to resume the train of a model based on current config."
+    )
+    print("[!] '/fetch hf <Name>' to download a dataset from huggingface.")
     print("=" * 50)
 
     while True:
         try:
             user_input = input("\n[User] ").strip()
 
-            if user_input.lower() in ["/quit"]:
-                print("[!] LLMe chatting room exited.")
-                exit(0)
-            if user_input.startswith("/switch "):
-                model_name = user_input[8:].strip()
-
-                if not model_name:
-                    print(
-                        "[!] Please specify a model name. Usage: /switch <Model Name>"
-                    )
-                    continue
-
-                try:
-                    core.switch(model_name)
-                    print(f"[!] Successfully switched to {model_name}")
-                except Exception as e:
-                    print(f"[!] Failed to switch model: {e}")
-                continue
-            if user_input.startswith("/train "):
-                model_name = user_input[7:].strip()
-
-                if not model_name:
-                    print("[!] Please specify a model name. Usage: /train <Model Name>")
-                    continue
-
-                print(f"[!] Starting training for model: {model_name}")
-                print("[!] This may take a while...")
-
-                try:
-                    core.train(model_name)
-                    print(f"[!] Training completed! Model saved as: {model_name}")
-                except Exception as e:
-                    print(f"[!] Training failed: {e}")
-                continue
-
-            if user_input.startswith("/tdat"):
-                parts = user_input.split()
-                if len(parts) < 2:
-                    print("[!] Usage: /tdat [local|hf <name>|clear|stats]")
-                    continue
-
-                subcmd = parts[1].lower()
-                if subcmd == "local":
-                    print("[!] Loading local data from data/ directory...")
-                    try:
-                        stats = core.load_local_data()
-                        print(f"[!] Local data loaded:")
-                        print(f"    Total samples: {stats['total']}")
-                        print(f"    By format: {stats['by_format']}")
-                    except Exception as e:
-                        print(f"[!] Failed to load local data: {e}")
-                elif subcmd == "hf":
-                    if len(parts) < 3:
-                        print(
-                            "[!] Please specify dataset name. Usage: /tdat hf <dataset>"
-                        )
-                        continue
-                    dataset_name = parts[2]
-                    split = parts[3] if len(parts) > 3 else "train"
-
-                    print(
-                        f"[!] Loading HuggingFace dataset: {dataset_name} (split: {split})..."
-                    )
-                    print("[!] This may take a while for first download...")
-
-                    try:
-                        stats = core.load_hf_data(dataset_name, split)
-                        print(f"[!] HuggingFace data loaded:")
-                        print(f"    Dataset: {dataset_name}")
-                        print(f"    Split: {split}")
-                        print(f"    Samples: {stats['samples']}")
-                        print(f"    Text column: {stats.get('text_column', 'auto')}")
-                    except Exception as e:
-                        print(f"[!] Failed to load HuggingFace data: {e}")
-                elif subcmd == "clear":
-                    confirm = input(
-                        "[!] Are you sure you want to clear all cached data? (y/N): "
-                    )
-                    if confirm.lower() == "y":
-                        try:
-                            core.clear_data_cache()
-                            print("[!] Data cache cleared.")
-                        except Exception as e:
-                            print(f"[!] Failed to clear cache: {e}")
-                    else:
-                        print("[!] Operation cancelled.")
-                elif subcmd == "stats":
-                    try:
-                        stats = core.get_data_stats()
-                        if stats["total"] == 0:
-                            print(
-                                "[!] No data in cache. Use /tdat local or /tdat hf to load data."
-                            )
-                        else:
-                            print("[!] Current data statistics:")
-                            print(f"    Total samples: {stats['total']}")
-                            print(f"    By source: {stats['by_source']}")
-                            print(f"    By type: {stats['by_type']}")
-                            if "sample_preview" in stats:
-                                print(f"    Preview: {stats['sample_preview']}")
-                    except Exception as e:
-                        print(f"[!] Failed to get stats: {e}")
-
-                else:
-                    print(f"[!] Unknown subcommand: {subcmd}")
-                    print("[!] Available: local, hf <name>, clear, stats")
-
-                continue
-
             if not user_input:
                 continue
 
+            handle_commands(user_input)
+            if user_input.startswith("/"):
+                continue
+
             print("[LLMe] ", end="", flush=True)
-            core.chat(user_input)
+            train.chat(user_input)
 
         except KeyboardInterrupt:
             print("[!] LLMe chatting room exited.")
             break
         except Exception as e:
             print(f"[!] Error: {e}")
+
+
+def handle_commands(user_input: str):
+    # /quit
+    if user_input.lower() in ["/quit"]:
+        print("[!] LLMe CLI exited.")
+        exit(0)
+
+    # /switch <name>
+    if user_input.startswith("/switch "):
+        datpath = user_input[8:].strip()
+
+        if not datpath:
+            print("[!] Please specify a model name. Usage: /switch <Model Name>")
+
+        try:
+            train.switch(datpath)
+            print(f"[!] Successfully switched to {datpath}")
+        except Exception as e:
+            print(f"[!] Failed to switch model: {e}")
+
+    # /train <name>
+    if user_input.startswith("/train "):
+        datpath = user_input[7:].strip()
+
+        if not datpath:
+            print("[!] Please specify a model name. Usage: /train <Model Name>")
+
+        print(f"[!] Starting training for model: {datpath}")
+        print("[!] This may take a while...")
+
+        try:
+            train.train(datpath)
+            print(f"[!] Training completed! Model saved as: {datpath}")
+        except Exception as e:
+            print(f"[!] Training failed: {e}")
+
+    # /resume <name> [epochs]
+    if user_input.startswith("/resume"):
+        parts = user_input.split()
+        if len(parts) < 2:
+            print("[!] Usage: /resume <Model Name> [additional_epochs]")
+
+        model_name = parts[1]
+        additional_epochs: int = int(parts[2]) if len(parts) > 2 else 0
+
+        print(f"[!] Resuming training for model: {model_name}")
+        if additional_epochs:
+            print(f"[!] Additional epochs: {additional_epochs}")
+        print("[!] This may take a while...")
+        print("[!] Press Ctrl+C to stop gracefully")
+
+        try:
+            stats = train.resume_train(model_name, additional_epochs)
+            print(f"[!] Training resumed and completed!")
+            print(f"    Model: {model_name}")
+            print(f"    Total epochs: {stats['total_epochs']}")
+            print(f"    Final loss: {stats['final_loss']:.4f}")
+        except Exception as e:
+            print(f"[!] Failed to resume training: {e}")
+
+    # /clear
+    if user_input.startswith("/clear"):
+        confirm = input("[!] Are you sure you want to clear all cached data? (y/N): ")
+        if confirm.lower() == "y":
+            try:
+                load.clear_data_cache()
+                print("[!] Data cache cleared.")
+            except Exception as e:
+                print(f"[!] Failed to clear cache: {e}")
+        else:
+            print("[!] Operation cancelled.")
+
+    # /load ?[relative_path]
+    if user_input.startswith("/load"):
+        datpath = user_input[6:].strip()
+
+        if not datpath or datpath.isspace() or datpath == "":
+            datpath = "data/"
+
+        try:
+            load.scan(datpath)
+            print(f"[!] Successfully loaded {datpath}")
+        except Exception as e:
+            print(f"[!] Failed to load: {e}")
+
+    # /fetch hf <name>
+    if user_input.startswith("/fetch"):
+        parts = user_input.split()
+        if len(parts) < 3:
+            print("[!] Usage: /fetch hf <dataset_name> [split]")
+
+        if parts[1].lower() == "hf":
+            dataset_name = parts[2]
+            split = parts[3] if len(parts) > 3 else "all"
+
+            print(f"[!] Fetching HuggingFace dataset: {dataset_name}")
+            print("[!] This may take a while for first download...")
+
+            try:
+                stats = fetch.fetch_huggingface(dataset_name, split)
+                print(f"[!] Dataset fetched successfully!")
+                print(f"    Dataset: {dataset_name}")
+                print(f"    Split: {split}")
+                print(f"    Saved to: data/hf/{dataset_name.replace('/', '_')}")
+                print(f"    Samples: {stats['samples']}")
+                print(f"    Files: {stats['files']}")
+            except Exception as e:
+                print(f"[!] Failed to fetch dataset: {e}")
+        else:
+            print("[!] Only 'hf' is supported. Usage: /fetch hf <dataset_name>")
 
 
 if __name__ == "__main__":

@@ -153,7 +153,7 @@ class LanguageModel(nn.Module):
         return logits
 
     @torch.no_grad()
-    def generate(self, idx, max_new_tokens, temperature=0.8, top_k=40):
+    def generate(self, idx, max_new_tokens, temperature=0.8, top_k=40, eos_token_id=None):
         self.eval()
 
         for _ in range(max_new_tokens):
@@ -170,6 +170,9 @@ class LanguageModel(nn.Module):
             probs = F.softmax(logits, dim=-1)
             idx_next = torch.multinomial(probs, num_samples=1)
             idx = torch.cat([idx, idx_next.unsqueeze(0)], dim=1)
+            
+            if eos_token_id is not None and idx_next.item() == eos_token_id:
+                break
 
         return idx
 

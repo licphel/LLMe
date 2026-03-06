@@ -1,12 +1,12 @@
 {
-  "max_sequence_length": 128,
-  "stride": 64,
-  "dimensions": 256,
-  "layers": 8,
-  "heads": 8,
+  "max_sequence_length": 256,
+  "stride": 128,
+  "dimensions": 128,
+  "layers": 4,
+  "heads": 4,
   "learning_rate": 0.0003,
   "epochs": 5,
-  "batch_size": 32,
+  "batch_size": 16,
   "max_length": 1000,
-  "temperature": 0.08
+  "temperature": 0.8
 }

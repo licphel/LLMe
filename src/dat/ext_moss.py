@@ -1,16 +1,17 @@
 from .loader import DataLoader
 from pathlib import Path
-import json
+from .util import readjson
 import logging
 
 logger = logging.getLogger(__name__)
 
 
 # MOSS .json data loader.
+# TODO: Dialog support
 class MossLoader(DataLoader):
-    def _collect(self, text: str, path: Path) -> int:
+    def _collect(self, path: Path) -> int:
         try:
-            data = json.loads(text)
+            data = readjson(path)
 
             if isinstance(data, list):
                 count = 0
@@ -20,8 +21,9 @@ class MossLoader(DataLoader):
             else:
                 return self._parse_moss_item(data, path)
 
-        except json.JSONDecodeError:
-            return self._parse_jsonl(text, path)
+        except Exception as ex:
+            logger.error(f"invalid json: {ex}")
+            return 0
 
     def _parse_moss_item(self, item: dict, path: Path) -> int:
         try:
@@ -64,22 +66,3 @@ class MossLoader(DataLoader):
             logger.warning(f"fail to decode MOSS item: {e}")
 
         return 0
-
-    def _parse_jsonl(self, text: str, path: Path) -> int:
-        lines = text.strip().split("\n")
-        total_turns = 0
-
-        for line_num, line in enumerate(lines, 1):
-            if not line.strip():
-                continue
-
-            try:
-                item = json.loads(line)
-                turns = self._parse_moss_item(item, path)
-                total_turns += turns
-
-            except json.JSONDecodeError:
-                logger.warning(f"invalid line {path.name}:{line_num}")
-                continue
-
-        return total_turns

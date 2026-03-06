@@ -1,8 +1,0 @@
-{
-  "vocab_size": 42,
-  "dim": 256,
-  "n_layers": 4,
-  "n_heads": 4,
-  "max_seq_len": 128,
-  "model_name": "llme"
-}

@@ -1,16 +1,17 @@
 from .loader import DataLoader
 from pathlib import Path
-import json
 import logging
+from .util import readjson
 
 logger = logging.getLogger(__name__)
 
 
 # ShareGPT .json data loader.
+# TODO: Dialog support
 class ShareGPTLoader(DataLoader):
-    def _collect(self, text: str, path: Path) -> int:
+    def _collect(self, path: Path) -> int:
         try:
-            data = json.loads(text)
+            data = readjson(path)
 
             if isinstance(data, list):
                 count = 0
@@ -20,8 +21,9 @@ class ShareGPTLoader(DataLoader):
             else:
                 return self._parse_sharegpt_item(data, path, 0)
 
-        except json.JSONDecodeError:
-            return self._parse_jsonl(text, path)
+        except Exception as ex:
+            logger.error(f"invalid json: {ex}")
+            return 0
 
     def _parse_sharegpt_item(self, item: dict, path: Path, idx: int) -> int:
         try:
@@ -62,20 +64,3 @@ class ShareGPTLoader(DataLoader):
             logger.warning(f"fail to pass ShareGPT item: {e}")
 
         return 0
-
-    def _parse_jsonl(self, text: str, path: Path) -> int:
-        lines = text.strip().split("\n")
-        total_turns = 0
-
-        for line_num, line in enumerate(lines, 1):
-            if not line.strip():
-                continue
-            try:
-                item = json.loads(line)
-                turns = self._parse_sharegpt_item(item, path, line_num)
-                total_turns += turns
-            except json.JSONDecodeError:
-                logger.warning(f"invalid line {path.name}:{line_num}")
-                continue
-
-        return total_turns

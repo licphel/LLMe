@@ -25,12 +25,10 @@ class DataLoader:
 
     # PRIVATE: loads a dataset from a single file.
     def _load_file(self, path: Path):
-        with open(path, "r", encoding="utf-8") as f:
-            text = f.read()
-        self._collect(text, path)
+        self._collect(path)
 
     # PRIVATE: collects raw text.
-    def _collect(self, text: str, path: Path) -> int:
+    def _collect(self, path: Path) -> int:
         return 0
 
     # appends a raw text entry.

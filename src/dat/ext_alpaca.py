@@ -1,6 +1,6 @@
 from .loader import DataLoader
 from pathlib import Path
-import json
+from .util import readjson
 import logging
 
 logger = logging.getLogger(__name__)
@@ -8,9 +8,9 @@ logger = logging.getLogger(__name__)
 
 # Alpaca .json data loader.
 class AlpacaLoader(DataLoader):
-    def _collect(self, text: str, path: Path) -> int:
+    def _collect(self, path: Path) -> int:
         try:
-            data = json.loads(text)
+            data = readjson(path)
 
             if isinstance(data, list):
                 count = 0
@@ -21,8 +21,8 @@ class AlpacaLoader(DataLoader):
             else:
                 return 1 if self._parse_alpaca_item(data, path, 0) else 0
 
-        except json.JSONDecodeError:
-            logger.error(f"invalid json: {path}")
+        except Exception as ex:
+            logger.error(f"invalid json: {ex}")
             return 0
 
     def _parse_alpaca_item(self, item: dict, path: Path, idx: int) -> bool:
@@ -30,10 +30,10 @@ class AlpacaLoader(DataLoader):
             if "instruction" not in item or "output" not in item:
                 return False
 
-            formatted = ""
+            dialog = []
 
             if "system" in item and item["system"]:
-                formatted += f"[System] {item['system']}\n"
+                dialog.append({"role": "system", "content": item["system"]})
 
             instruction = item["instruction"]
             input_text = item.get("input", "")
@@ -43,12 +43,11 @@ class AlpacaLoader(DataLoader):
             else:
                 user_content = instruction
 
-            formatted += f"[User] {user_content}\n"
-            formatted += f"[Assistant] {item['output']}\n"
-            formatted += "[Assistant]"
+            dialog.append({"role": "user", "content": user_content})
+            dialog.append({"role": "assistant", "content": item["output"]})
 
             self.append_text(
-                {"text": formatted, "source": f"{path.name}:{idx}", "type": "sft"}
+                {"dialog": dialog, "source": f"{path.name}:{idx}", "type": "sft"}
             )
 
             return True

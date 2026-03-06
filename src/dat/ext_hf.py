@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 # HuggingFace dataset loader.
-class HFLoader(DataLoader):
+class HuggingFaceFetcher(DataLoader):
     def load_hf(
         self,
         path: str,

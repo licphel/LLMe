@@ -2,27 +2,7 @@ import torch
 from torch.utils.data import Dataset
 import time
 from pathlib import Path
-
-
-class TextDataset(Dataset):
-    def __init__(self, text, tokenizer, seq_len=128):
-        self.tokenizer = tokenizer
-        self.seq_len = seq_len
-        self.data = tokenizer.encode(text)
-        self.n_samples = max(0, len(self.data) // seq_len - 1)
-        print(f"Dataset: {len(self.data)} tokens -> {self.n_samples} samples")
-
-    def __len__(self):
-        return self.n_samples
-
-    def __getitem__(self, idx):
-        start = idx * self.seq_len
-        end = start + self.seq_len
-
-        x = torch.tensor(self.data[start:end], dtype=torch.long)
-        y = torch.tensor(self.data[start + 1 : end + 1], dtype=torch.long)
-
-        return x, y
+import signal
 
 
 class Trainer:
@@ -39,17 +19,57 @@ class Trainer:
         self.step = 0
         self.epoch = 0
         self.losses = []
+        self.stop_training = False
+        self.patience = 3
+        self.min_delta = 0.01
+        self.best_loss = float("inf")
+        self.wait = 0
+
+        # ctrl+c early stop and save.
+        signal.signal(signal.SIGINT, self.signal_handler)
+
+    def signal_handler(self, sig, frame):
+        self.stop_training = True
+
+    def check_early_stopping(self, current_loss):
+        if current_loss < self.best_loss - self.min_delta:
+            self.best_loss = current_loss
+            self.wait = 0
+            return False
+        else:
+            self.wait += 1
+            if self.wait >= self.patience:
+                print(
+                    f"\n   Early stopping triggered! Loss didn't improve for {self.patience} epochs."
+                )
+                return True
+        return False
 
     def train_epoch(self):
         self.model.train()
         total_loss = 0
         start_time = time.time()
 
-        for batch_idx, (x, y) in enumerate(self.train_loader):
-            x, y = x.to(self.device), y.to(self.device)
+        for batch_idx, batch in enumerate(self.train_loader):
+            if self.stop_training:
+                print("\n   Stopping training as requested...")
+                return total_loss / (batch_idx + 1) if batch_idx > 0 else 0
+
+            if len(batch) == 3:
+                x, y, mask = batch
+                x, y, mask = x.to(self.device), y.to(self.device), mask.to(self.device)
+            else:
+                x, y = batch
+                x, y = x.to(self.device), y.to(self.device)
+                mask = None
 
             # forward
             _, loss = self.model(x, y)
+
+            # loss mask
+            if mask is not None:
+                loss = loss * mask.float()
+                loss = loss.sum() / mask.sum()
 
             # backward
             self.optimizer.zero_grad()
@@ -61,7 +81,7 @@ class Trainer:
             total_loss += loss.item()
             self.losses.append(loss.item())
 
-            if self.step % 50 == 0:
+            if self.step % 10 == 0:
                 elapsed = time.time() - start_time
                 steps_per_sec = (batch_idx + 1) / elapsed if elapsed > 0 else 0
                 print(
@@ -74,33 +94,48 @@ class Trainer:
         self.epoch += 1
         return total_loss / len(self.train_loader)
 
-    def train(self, epochs, save_dir="models"):
-        Path(save_dir).mkdir(parents=True, exist_ok=True)
+    def train(self, epochs, save_dir: Path, resume_from: int = 0):
+        save_dir.mkdir(parents=True, exist_ok=True)
 
         print(f"\n Training on {self.device}")
         print(f"   Args: {self.model.count_parameters():,}")
         print(f"   Batch: {len(self.train_loader)}")
-        print(f"   Steps: {len(self.train_loader) * epochs}")
+        print(f"   Steps: {len(self.train_loader) * (epochs - resume_from)}")
+        print(f"   Resume from epoch {resume_from}")
+        print("=" * 60)
+        print("   Press Ctrl+C to stop training gracefully")
         print("=" * 60)
 
-        best_loss = float("inf")
+        for epoch in range(resume_from, epochs):
+            if self.stop_training:
+                print(f"\nTraining stopped by user at epoch {epoch}")
+                self.save_model(f"{save_dir}/interrupted_epoch_{epoch}.pt")
+                break
 
-        for epoch in range(epochs):
             print(f"\n Epoch {epoch+1}/{epochs}")
 
             avg_loss = self.train_epoch()
             print(f"\n   Avg loss: {avg_loss:.4f}")
 
-            if avg_loss < best_loss:
-                best_loss = avg_loss
+            if avg_loss < self.best_loss:
+                self.best_loss = avg_loss
                 self.save_model(f"{save_dir}/best.pt")
-                print(f"   Best saved.")
+                print(f"   Best saved (loss={avg_loss:.4f})")
 
             if (epoch + 1) % 5 == 0:
                 self.save_model(f"{save_dir}/epoch_{epoch+1}.pt")
+                print(f"   Checkpoint saved at epoch {epoch+1}")
 
-        self.save_model(f"{save_dir}/final.pt")
-        print(f"\n Training succeed.")
+            if self.check_early_stopping(avg_loss):
+                print(f"\nEarly stopping triggered at epoch {epoch+1}")
+                self.save_model(f"{save_dir}/early_stop_epoch_{epoch+1}.pt")
+                break
+
+        if not self.stop_training:
+            self.save_model(f"{save_dir}/final.pt")
+            print(f"\n Training succeed.")
+        else:
+            print(f"\n Training interrupted.")
 
     def save_model(self, path):
         state_dict = self.model.state_dict()
@@ -115,6 +150,7 @@ class Trainer:
                 "step": self.step,
                 "epoch": self.epoch,
                 "losses": self.losses,
+                "best_loss": self.best_loss,
                 "config": {
                     "vocab_size": self.model.vocab_size,
                     "dim": self.model.dim,
@@ -132,3 +168,4 @@ class Trainer:
         self.step = checkpoint["step"]
         self.epoch = checkpoint["epoch"]
         self.losses = checkpoint["losses"]
+        self.best_loss = checkpoint.get("best_loss", float("inf"))

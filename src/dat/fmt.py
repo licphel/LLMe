@@ -4,7 +4,7 @@ from .ext_txt import TextLoader
 from .ext_moss import MossLoader
 from .ext_sgpt import ShareGPTLoader
 from .ext_alpaca import AlpacaLoader
-from .ext_hf import HFLoader
+from .ext_hf import HuggingFaceFetcher
 import logging
 from .uniset import Uniset
 from typing import Type, Optional
@@ -33,7 +33,7 @@ class DataFormat:
         if fmt == DataFormat.ALPACA:
             return AlpacaLoader
         if fmt == DataFormat.HF:
-            return HFLoader
+            return HuggingFaceFetcher
         raise Exception(f"unknown format: {fmt}")
 
     # loads a dataset with a path.
@@ -54,6 +54,6 @@ class DataFormat:
         stride=None,
         **kwargs,
     ) -> Uniset:
-        loader = HFLoader(seqlen, stride)
+        loader = HuggingFaceFetcher(seqlen, stride)
         loader.load_hf(dataset_path, name=name, split=split, **kwargs)
         return loader.uniset

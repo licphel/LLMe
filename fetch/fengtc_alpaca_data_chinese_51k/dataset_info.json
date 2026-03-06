@@ -1,0 +1,7 @@
+{
+  "dataset": "fengtc/alpaca_data_chinese_51k",
+  "splits": [
+    "train"
+  ],
+  "total_samples": 152580
+}
