@@ -19,14 +19,17 @@ except Exception as ex:
     Config = {
         "max_sequence_length": 256,
         "stride": 128,
-        "dimensions": 512,
-        "layers": 8,
+        "dimensions": 256,
+        "layers": 6,
         "heads": 8,
-        "learning_rate": 0.0003,
-        "epochs": 50,
-        "batch_size": 32,
-        "max_length": 1000,
-        "temperature": 0.08
+        "learning_rate": 2e-4,
+        "epochs": 12,
+        "batch_size": 8,
+        "max_tokens": 80,
+        "temperature": 0.75,
+        "top_k": 40,
+        "top_p": 0.9,
+        "repetition_penalty": 1.15,
     }
     with open(_cfg_path, "w", encoding="utf-8") as f:
         json.dump(Config, f, indent=2)

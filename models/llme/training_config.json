@@ -4,9 +4,9 @@
   "dimensions": 128,
   "layers": 4,
   "heads": 4,
-  "learning_rate": 0.0003,
-  "epochs": 5,
+  "learning_rate": 0.00021,
+  "epochs": 27,
   "batch_size": 16,
-  "max_length": 1000,
-  "temperature": 0.8
+  "max_length": 200,
+  "temperature": 0.4
 }

@@ -146,34 +146,60 @@ class LanguageModel(nn.Module):
 
         if targets is not None:
             loss = F.cross_entropy(
-                logits.view(-1, self.vocab_size), targets.view(-1), ignore_index=-1
+                logits.view(-1, self.vocab_size), 
+                targets.view(-1), 
+                ignore_index=-1,
+                reduction="none"
             )
+            loss = loss.view(B, T)
             return logits, loss
 
         return logits
 
     @torch.no_grad()
-    def generate(self, idx, max_new_tokens, temperature=0.8, top_k=40, eos_token_id=None):
+    def generate(self, idx, max_new_tokens, temperature=0.8, top_k=40, top_p=0.95, 
+             repetition_penalty=1.2, eos_token_id=None):
         self.eval()
-
+        
+        generated = []
+        
         for _ in range(max_new_tokens):
-            idx_cond = (
-                idx if idx.size(1) <= self.max_seq_len else idx[:, -self.max_seq_len :]
-            )
+            idx_cond = idx if idx.size(1) <= self.max_seq_len else idx[:, -self.max_seq_len:]
             logits = self(idx_cond)
             logits = logits[0, -1, :] / temperature
-
+            
+            # rep penalty
+            if repetition_penalty > 1.0 and generated:
+                for token_id in set(generated[-10:]):
+                    logits[token_id] /= repetition_penalty
+            
+            # top-k 
             if top_k > 0:
                 v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
                 logits[logits < v[-1]] = float("-inf")
-
-            probs = F.softmax(logits, dim=-1)
+            
+            # top-p 
+            if top_p < 1.0:
+                sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+                cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
+                
+                sorted_indices_to_remove = cumulative_probs > top_p
+                sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+                sorted_indices_to_remove[..., 0] = 0
+                
+                indices_to_remove = sorted_indices[sorted_indices_to_remove]
+                logits[indices_to_remove] = float("-inf")
+            
+            probs = torch.softmax(logits, dim=-1)
             idx_next = torch.multinomial(probs, num_samples=1)
+            
+            generated.append(idx_next.item())
+            
             idx = torch.cat([idx, idx_next.unsqueeze(0)], dim=1)
             
             if eos_token_id is not None and idx_next.item() == eos_token_id:
                 break
-
+        
         return idx
 
     @torch.no_grad()

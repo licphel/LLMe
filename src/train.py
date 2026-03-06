@@ -9,6 +9,8 @@ from trainer import Trainer
 from lib import Config
 import json
 import load as load
+from pathlib import Path
+from torch.utils.data import DataLoader as TorchDataLoader
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -38,38 +40,47 @@ def train(model_name: str) -> Dict[str, Any]:
     print("\nTraining tokenizer...")
     tokenizer = Tokenizer()
 
-    all_texts = []
+    corpus_parts = []
     dialog_count = 0
     text_count = 0
 
     for item in uniset.data:
         if "dialog" in item:
-            # dialogue mode
             dialog_count += 1
             for turn in item["dialog"]:
                 if "content" in turn:
-                    all_texts.append(turn["content"])
+                    if turn.get("role") == "user":
+                        corpus_parts.append("<user>")
+                    elif turn.get("role") == "assistant":
+                        corpus_parts.append("<assistant>")
+                    elif turn.get("role") == "system":
+                        corpus_parts.append("<system>")
+                    corpus_parts.append(turn["content"])
+            corpus_parts.append("<eos>")
         elif "text" in item:
-            # text mode
             text_count += 1
-            all_texts.append(item["text"])
+            corpus_parts.append(item["text"])
+            corpus_parts.append("<eos>")
 
     print(f"  Data composition: {dialog_count} dialogs, {text_count} texts")
 
-    if not all_texts:
+    if not corpus_parts:
         raise RuntimeError("No valid text content found in data")
 
-    corpus = "\n".join(all_texts)
+    corpus = "\n".join(corpus_parts)
     tokenizer.train(corpus)
     print(f"  Vocab size: {tokenizer.vocab_size}")
 
     # 3. create training dataset
     print("\nCreating training dataset...")
     dataset = uniset.to_torch_dataset(tokenizer, seq_len=Config["max_sequence_length"])
-    from torch.utils.data import DataLoader as TorchDataLoader
 
     train_loader = TorchDataLoader(
-        dataset, batch_size=Config["batch_size"], shuffle=True, num_workers=2
+        dataset,
+        batch_size=Config["batch_size"],
+        shuffle=True,
+        num_workers=2,
+        persistent_workers=False,
     )
 
     # 4. create model
@@ -152,8 +163,15 @@ def resume_train(model_name: str, additional_epochs: int):
     )
 
     # 5. load pts
-    checkpoint_path = model_dir / "final.pt"
-    if not checkpoint_path.exists():
+    checkpoint_path: Path = Path()
+
+    interrupted_files = list(model_dir.glob("interrupted_epoch_*.pt"))
+    if interrupted_files:
+        # find newest
+        checkpoint_path = max(interrupted_files, key=lambda p: p.stat().st_mtime)
+    elif (model_dir / "final.pt").exists():
+        checkpoint_path = model_dir / "final.pt"
+    elif (model_dir / "best.pt").exists():
         checkpoint_path = model_dir / "best.pt"
 
     print(f"   Loading checkpoint: {checkpoint_path}")
@@ -177,7 +195,7 @@ def resume_train(model_name: str, additional_epochs: int):
     uniset = load.get_data_cache()
     if len(uniset.data) == 0:
         raise Exception("No data in cache.")
-        
+
     print(f"\nData stats:")
     print(f"  Samples: {len(uniset.data)}")
 
@@ -186,14 +204,17 @@ def resume_train(model_name: str, additional_epochs: int):
     dataset = uniset.to_torch_dataset(
         tokenizer, seq_len=model_config["max_sequence_length"]
     )
-    from torch.utils.data import DataLoader as TorchDataLoader
 
     train_loader = TorchDataLoader(
-        dataset, batch_size=model_config["batch_size"], shuffle=True, num_workers=2
+        dataset,
+        batch_size=model_config["batch_size"],
+        shuffle=True,
+        num_workers=2,
+        persistent_workers=False,
     )
 
     if additional_epochs <= 0:
-        target_epochs = 1
+        target_epochs = completed_epochs + 1
     else:
         target_epochs = completed_epochs + additional_epochs
 
@@ -213,7 +234,9 @@ def resume_train(model_name: str, additional_epochs: int):
 
     # load optimizer
     if "optimizer_state_dict" in checkpoint:
-        trainer.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        # do not load this
+        # it will overwrite learning
+        # trainer.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         trainer.step = completed_steps
         trainer.epoch = completed_epochs
         trainer.losses = checkpoint.get("losses", [])
@@ -309,30 +332,29 @@ def list_models():
 
 
 # utility method to generate text
-def _generate_text(
-    model,
-    tokenizer,
-    prompt,
-    max_length=Config["max_length"],
-    temperature=Config["temperature"],
-):
+def _generate_text(model, tokenizer, prompt):
     model.to(_device)
     model.eval()
 
-    input_ids = tokenizer.encode(prompt)
+    input_text = f"<user>{prompt}<assistant>"
+    input_ids = tokenizer.encode(input_text)
     input_tensor = torch.tensor([input_ids], dtype=torch.long).to(_device)
 
     with torch.no_grad():
         output_ids = model.generate(
             input_tensor,
-            max_new_tokens=max_length,
-            temperature=temperature,
+            max_new_tokens=Config["max_tokens"],
+            temperature=Config["temperature"],
+            top_k=Config["top_k"],
+            top_p=Config["top_p"],
+            repetition_penalty=Config["repetition_penalty"],
             eos_token_id=tokenizer.eos_id,
         )
 
     full_output = tokenizer.decode(output_ids[0].tolist())
+
     if "<assistant>" in full_output:
         response = full_output.split("<assistant>")[-1]
-    else:
-        response = full_output
-    return response.replace("<eos>", "").strip()
+        response = response.replace("<eos>", "").strip()
+        return response
+    return full_output

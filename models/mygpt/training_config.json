@@ -4,12 +4,12 @@
   "dimensions": 256,
   "layers": 6,
   "heads": 8,
-  "learning_rate": 2E-4,
+  "learning_rate": 0.0002,
   "epochs": 12,
   "batch_size": 8,
   "max_tokens": 80,
   "temperature": 0.75,
   "top_k": 40,
   "top_p": 0.9,
-  "repetition_penalty": 1.15
+  "repetition_penalty": 1.1
 }

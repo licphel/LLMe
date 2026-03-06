@@ -58,15 +58,15 @@ python chat.py
 ```json
 {
     "max_sequence_length": 256,    // 序列长度
-    "stride": 128,                  // 滑动步长
-    "dimensions": 128,              // 嵌入维度
-    "layers": 4,                    // Transformer 层数
-    "heads": 4,                      // 注意力头数
-    "learning_rate": 0.0002,         // 学习率
-    "epochs": 5,                      // 训练轮数
-    "batch_size": 8,                  // 批次大小
-    "max_length": 512,                // 生成长度
-    "temperature": 0.7                 // 生成温度
+    "stride": 128,                 // 滑动步长
+    "dimensions": 128,             // 嵌入维度
+    "layers": 4,                   // Transformer 层数
+    "heads": 4,                    // 注意力头数
+    "learning_rate": 0.0002,       // 学习率
+    "epochs": 5,                   // 训练轮数
+    "batch_size": 8,               // 批次大小
+    "max_length": 512,             // 生成长度
+    "temperature": 0.7             // 生成温度
 }
 ```
 

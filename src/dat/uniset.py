@@ -28,31 +28,30 @@ class Uniset:
         samples = []
 
         for idx, item in enumerate(self.data):
-            # check if it is dialog structured.
             if "dialog" in item:
                 tokens = tokenizer.encode_dialog(item["dialog"])
             else:
-                # pure text
                 text = item["text"]
                 tokens = tokenizer.encode(text)
-                # add <eos>
                 tokens.append(tokenizer.eos_id)
 
-            if len(tokens) < seq_len + 1:
-                # too short, fill it to seq_len + 1
-                tokens = tokens + [tokenizer.pad_id] * (seq_len + 1 - len(tokens))
+            if len(tokens) <= seq_len + 1:
+                if len(tokens) < seq_len + 1:
+                    tokens = tokens + [tokenizer.pad_id] * (seq_len + 1 - len(tokens))
 
-            # sampling
-            for i in range(0, len(tokens) - seq_len, stride):
-                chunk = tokens[i : i + seq_len + 1]
-                if len(chunk) == seq_len + 1:
-                    input_ids = chunk[:-1]
-                    target_ids = chunk[1:]
-                    loss_mask = self._create_loss_mask(
-                        tokens[i : i + seq_len], tokenizer
-                    )
-
-                    samples.append((input_ids, target_ids, loss_mask))
+                input_ids = tokens[:-1]
+                target_ids = tokens[1:]
+                loss_mask = self._create_loss_mask(tokens[:-1], tokenizer)
+                samples.append((input_ids, target_ids, loss_mask))
+            else:
+                # cut too long dialog.
+                for i in range(0, len(tokens) - seq_len, stride):
+                    chunk = tokens[i : i + seq_len + 1]
+                    if len(chunk) == seq_len + 1:
+                        input_ids = chunk[:-1]
+                        target_ids = chunk[1:]
+                        loss_mask = self._create_loss_mask(chunk[:-1], tokenizer)
+                        samples.append((input_ids, target_ids, loss_mask))
 
         return _UnisetDataset(samples)
 
@@ -88,16 +87,9 @@ class _UnisetDataset(Dataset):
 
     def __getitem__(self, idx):
         item = self.samples[idx]
-        if len(item) == 3:
-            input_ids, target_ids, loss_mask = item
-            return (
-                torch.tensor(input_ids, dtype=torch.long),
-                torch.tensor(target_ids, dtype=torch.long),
-                torch.tensor(loss_mask, dtype=torch.bool),
-            )
-        else:
-            input_ids, target_ids = item
-            return (
-                torch.tensor(input_ids, dtype=torch.long),
-                torch.tensor(target_ids, dtype=torch.long),
-            )
+        input_ids, target_ids, loss_mask = item
+        return (
+            torch.tensor(input_ids, dtype=torch.long),
+            torch.tensor(target_ids, dtype=torch.long),
+            torch.tensor(loss_mask, dtype=torch.bool),
+        )

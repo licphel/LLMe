@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+
 # a char tokenizer.
 class Tokenizer:
     def __init__(self):
@@ -15,27 +16,25 @@ class Tokenizer:
         self.assistant_id = None
 
     def train(self, text):
-        chars = sorted(list(set(text)))
-
-        self.stoi = {ch: i for i, ch in enumerate(chars)}
-        self.itos = {i: ch for i, ch in enumerate(chars)}
-        self.vocab_size = len(chars)
+        chars = set()
+        for ch in text:
+            chars.add(ch)
 
         special_tokens = [
-            "<pad>",   # padding
-            "<unk>",   # unknown
-            "<bos>",   # begin of sentence
-            "<eos>",   # end of sentence
-            "<user>",  # user mark
-            "<assistant>",  # assistant mark
-            "<sep>",   # separator
+            "<pad>",
+            "<unk>",
+            "<bos>",
+            "<eos>",
+            "<user>",
+            "<assistant>",
+            "<sep>",
         ]
-        
-        for token in special_tokens:
-            if token not in self.stoi:
-                self.stoi[token] = self.vocab_size
-                self.itos[self.vocab_size] = token
-                self.vocab_size += 1
+
+        all_tokens = special_tokens + sorted(list(chars))
+
+        self.stoi = {token: i for i, token in enumerate(all_tokens)}
+        self.itos = {i: token for i, token in enumerate(all_tokens)}
+        self.vocab_size = len(all_tokens)
 
         self.pad_id = self.stoi.get("<pad>")
         self.unk_id = self.stoi.get("<unk>")
@@ -45,18 +44,39 @@ class Tokenizer:
         self.assistant_id = self.stoi.get("<assistant>")
 
         print(f"Tokenizer vocab size: {self.vocab_size}")
-        print(f"Special tokens: pad={self.pad_id}, eos={self.eos_id}, user={self.user_id}, assistant={self.assistant_id}")
+        print(f"Special tokens: pad={self.pad_id}, eos={self.eos_id}")
+        print(f"Sample chars: {list(chars)[:10]}")
         return self
 
     def encode(self, text):
-        return [self.stoi.get(ch, self.unk_id) for ch in text]
+        tokens = []
+        i = 0
+        while i < len(text):
+            matched = False
+            for special in [
+                "<pad>",
+                "<unk>",
+                "<bos>",
+                "<eos>",
+                "<user>",
+                "<assistant>",
+                "<sep>",
+            ]:
+                if text.startswith(special, i):
+                    tokens.append(self.stoi[special])
+                    i += len(special)
+                    matched = True
+                    break
+            if not matched:
+                tokens.append(self.stoi.get(text[i], self.unk_id))
+                i += 1
+        return tokens
 
     def decode(self, ids):
         text = ""
         for i in ids:
             token = self.itos.get(i, "<unk>")
-            if token not in ["<pad>", "<bos>", "<eos>", "<user>", "<assistant>", "<sep>"]:
-                text += token
+            text += token
         return text
 
     def encode_dialog(self, dialog):
