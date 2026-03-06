@@ -1,1 +1,0 @@
-python ./sources/train.py --name llme --data ./data --epochs 10
