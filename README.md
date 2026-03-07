@@ -7,7 +7,7 @@
 LLMe 是一个从零实现的轻量级语言模型训练框架，让你在个人电脑上就能训练自己的对话模型！
 
 ![GEN1](Gen1_Performance.png)
-*图：Gen1 模型的最佳对话效果。Gen1模型已包含于models文件夹种，可直接使用/switch gen1来测试。*
+*图：Gen1 模型的最佳对话效果。Gen1模型已包含于models文件夹，可直接使用/switch gen1来测试。*
 
 ## 特性
 
