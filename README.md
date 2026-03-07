@@ -7,6 +7,7 @@
 LLMe 是一个从零实现的轻量级语言模型训练框架，让你在个人电脑上就能训练自己的对话模型！
 
 ![GEN1](Gen1_Performance.png)
+*图：Gen1 模型的最佳对话效果。Gen1模型已包含于models文件夹种，可直接使用/switch gen1来测试。*
 
 ## 特性
 
@@ -27,7 +28,7 @@ LLMe 是一个从零实现的轻量级语言模型训练框架，让你在个人
 
 ### 2. 准备数据
 
-将数据放在 `data/` 目录下。或者，也可以指定一个相对路径（以..<executable>为根目录）
+将数据放在 `data/` 目录下。或者，也可以指定一个相对路径（以程序所在目录为根目录）
 
 或者从 HuggingFace 下载：
 ```bash
@@ -81,7 +82,7 @@ python chat.py
 ```json
 {
     "max_tokens": 120,              // 最大生成长度
-    "temperature": 1.3,             // 采样温度（越高越随机）
+    "temperature": 0.75,            // 采样温度（越高越随机）
     "top_k": 45,                    // Top-K 采样
     "top_p": 0.92,                  // Top-P 采样
     "repetition_penalty": 1.12      // 重复惩罚系数
@@ -98,7 +99,7 @@ python chat.py
 [User] /train mygpt
 
 # 3. 如果中断，继续训练
-[User] /resume mygpt 5
+[User] /resume mygpt best.pt 5
 
 # 4. 切换模型开始对话
 [User] /switch mygpt

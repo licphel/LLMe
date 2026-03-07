@@ -6,9 +6,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_fetch_dir = Basepath / "fetch"
+_fetch_dir = Basepath / "data_fetched"
 
-# fetches a huggingface dataset to ..program/fetch/
+# fetches a huggingface dataset to ..program/data_fetched/
 def fetch_huggingface(dataset_name: str, split: str = "all") -> dict:
     save_dir = _fetch_dir / dataset_name.replace("/", "_")
     save_dir.mkdir(parents=True, exist_ok=True)

@@ -12,7 +12,7 @@ TrainCfg: Dict = {}
 ArgsCfg: Dict = {}
 
 # config get or create.
-_cfg_path = Basepath / "config"
+_cfg_path = Basepath / "configs"
 try:
     with open(_cfg_path / "train.json", "r", encoding="utf-8") as file:
         TrainCfg = json.load(file)
