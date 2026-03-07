@@ -1,4 +1,4 @@
-import train as train
+import mmg as mmg
 import fetch as fetch
 import load as load
 
@@ -6,15 +6,7 @@ import load as load
 def main():
     print("\n" + "=" * 50)
     print("[!] LLMe CLI")
-    print("[!] '/quit' to exit.")
-    print("[!] '/switch <Model Name>' to switch between models.")
-    print("[!] '/load <Relative Path>' to load datasets.")
-    print("[!] '/clear' to clear cached data.")
-    print("[!] '/train <Model Name>' to train a new model.")
-    print(
-        "[!] '/resume <Model Name> [Epochs]' to resume the train of a model based on current config."
-    )
-    print("[!] '/fetch hf <Name>' to download a dataset from huggingface.")
+    print("[!] '/help' for further info.")
     print("=" * 50)
 
     while True:
@@ -29,7 +21,7 @@ def main():
                 continue
 
             print("[LLMe] ", end="", flush=True)
-            train.chat(user_input)
+            mmg.chat(user_input)
 
         except KeyboardInterrupt:
             print("[!] LLMe chatting room exited.")
@@ -39,8 +31,22 @@ def main():
 
 
 def handle_commands(user_input: str):
+    # /help
+    if user_input.startswith("/help"):
+        print("[!] '/quit' to exit.")
+        print("[!] '/switch <Model Name>' to switch between models.")
+        print(
+            "[!] '/load <Relative Path>' to scan all datasets in the given directory."
+        )
+        print("[!] '/clear' to clear cached data.")
+        print("[!] '/train <Model Name>' to train a new model.")
+        print(
+            "[!] '/resume <Model Name> <Checkpoint Name> [Epochs]' to resume the training of a model."
+        )
+        print("[!] '/fetch hf <Name>' to download a dataset from huggingface.")
+
     # /quit
-    if user_input.lower() in ["/quit"]:
+    if user_input.startswith("/quit"):
         print("[!] LLMe CLI exited.")
         exit(0)
 
@@ -52,13 +58,13 @@ def handle_commands(user_input: str):
             print("[!] Please specify a model name. Usage: /switch <Model Name>")
 
         try:
-            train.switch(datpath)
+            mmg.switch(datpath)
             print(f"[!] Successfully switched to {datpath}")
         except Exception as e:
             print(f"[!] Failed to switch model: {e}")
 
     # /train <name>
-    if user_input.startswith("/train "):
+    if user_input.startswith("/train"):
         datpath = user_input[7:].strip()
 
         if not datpath:
@@ -68,19 +74,20 @@ def handle_commands(user_input: str):
         print("[!] This may take a while...")
 
         try:
-            train.train(datpath)
+            mmg.train(datpath)
             print(f"[!] Training completed! Model saved as: {datpath}")
         except Exception as e:
             print(f"[!] Training failed: {e}")
 
-    # /resume <name> [epochs]
+    # /resume <name> <fname> [epochs]
     if user_input.startswith("/resume"):
         parts = user_input.split()
-        if len(parts) < 2:
-            print("[!] Usage: /resume <Model Name> [additional_epochs]")
+        if len(parts) < 3:
+            print("[!] Usage: /resume <Model Name> <Checkpoint Name> [additional_epochs]")
 
         model_name = parts[1]
-        additional_epochs: int = int(parts[2]) if len(parts) > 2 else 0
+        file_name = parts[2]
+        additional_epochs: int = int(parts[3]) if len(parts) > 2 else 0
 
         print(f"[!] Resuming training for model: {model_name}")
         if additional_epochs:
@@ -89,7 +96,7 @@ def handle_commands(user_input: str):
         print("[!] Press Ctrl+C to stop gracefully")
 
         try:
-            stats = train.resume_train(model_name, additional_epochs)
+            stats = mmg.resume_train(model_name, file_name, additional_epochs)
             print(f"[!] Training resumed and completed!")
             print(f"    Model: {model_name}")
             print(f"    Total epochs: {stats['total_epochs']}")

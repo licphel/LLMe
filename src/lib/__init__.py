@@ -1,4 +1,4 @@
 from .basepath import Basepath
-from .cfg import Config
+from .cfg import TrainCfg, ArgsCfg
 
-__all__ = ["Basepath", "Config"]
+__all__ = ["Basepath", "TrainCfg", "ArgsCfg"]

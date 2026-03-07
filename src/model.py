@@ -42,7 +42,7 @@ class Attention(nn.Module):
 
         attn = (q @ k.transpose(-2, -1)) / math.sqrt(self.head_dim)
 
-        if self.causal_mask is None or self.causal_mask.shape[-1] != T:
+        if self.causal_mask is None or self.causal_mask.shape[-1] != T: 
             mask = torch.triu(torch.ones(T, T, device=x.device), diagonal=1).bool()
             self.register_buffer("causal_mask", mask)
 
@@ -88,35 +88,25 @@ class TransformerBlock(nn.Module):
 
 
 class LanguageModel(nn.Module):
-    def __init__(
-        self, vocab_size, dim=256, n_layers=4, n_heads=4, max_seq_len=512, dropout=0.1
-    ):
+    def __init__(self, vocab_size, dim=256, layers=4, heads=4, seqlen=512, dropout=0.1):
         super().__init__()
 
         self.vocab_size = vocab_size
         self.dim = dim
-        self.max_seq_len = max_seq_len
-        self.config = {
-            "vocab_size": vocab_size,
-            "dim": dim,
-            "n_layers": n_layers,
-            "n_heads": n_heads,
-            "max_seq_len": max_seq_len,
-            "dropout": dropout,
-        }
+        self.max_seq_len = seqlen
 
         self.token_embedding = nn.Embedding(vocab_size, dim)
-        self.pos_embedding = nn.Embedding(max_seq_len, dim)
+        self.pos_embedding = nn.Embedding(seqlen, dim)
         self.embed_dropout = nn.Dropout(dropout)
         self.blocks = nn.ModuleList(
-            [TransformerBlock(dim, n_heads, dropout) for _ in range(n_layers)]
+            [TransformerBlock(dim, heads, dropout) for _ in range(layers)]
         )
         self.ln_f = LayerNorm(dim)
         self.lm_head = nn.Linear(dim, vocab_size)
         self.apply(self._init_weights)
 
         print(
-            f"Model created: vocab_size={vocab_size}, dim={dim}, layers={n_layers}, heads={n_heads}"
+            f"Model created: vocab_size={vocab_size}, dim={dim}, layers={layers}, heads={heads}"
         )
 
     def _init_weights(self, module):
@@ -146,10 +136,10 @@ class LanguageModel(nn.Module):
 
         if targets is not None:
             loss = F.cross_entropy(
-                logits.view(-1, self.vocab_size), 
-                targets.view(-1), 
+                logits.view(-1, self.vocab_size),
+                targets.view(-1),
                 ignore_index=-1,
-                reduction="none"
+                reduction="none",
             )
             loss = loss.view(B, T)
             return logits, loss
@@ -157,49 +147,63 @@ class LanguageModel(nn.Module):
         return logits
 
     @torch.no_grad()
-    def generate(self, idx, max_new_tokens, temperature=0.8, top_k=40, top_p=0.95, 
-             repetition_penalty=1.2, eos_token_id=None):
+    def generate(
+        self,
+        idx,
+        max_new_tokens,
+        temperature=0.8,
+        top_k=40,
+        top_p=0.95,
+        repetition_penalty=1.2,
+        eos_token_id=None,
+    ):
         self.eval()
-        
+
         generated = []
-        
+
         for _ in range(max_new_tokens):
-            idx_cond = idx if idx.size(1) <= self.max_seq_len else idx[:, -self.max_seq_len:]
+            idx_cond = (
+                idx if idx.size(1) <= self.max_seq_len else idx[:, -self.max_seq_len :]
+            )
             logits = self(idx_cond)
             logits = logits[0, -1, :] / temperature
-            
+
             # rep penalty
             if repetition_penalty > 1.0 and generated:
                 for token_id in set(generated[-10:]):
                     logits[token_id] /= repetition_penalty
-            
-            # top-k 
+
+            # top-k
             if top_k > 0:
                 v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
                 logits[logits < v[-1]] = float("-inf")
-            
-            # top-p 
+
+            # top-p
             if top_p < 1.0:
                 sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-                cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
-                
+                cumulative_probs = torch.cumsum(
+                    torch.softmax(sorted_logits, dim=-1), dim=-1
+                )
+
                 sorted_indices_to_remove = cumulative_probs > top_p
-                sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+                sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[
+                    ..., :-1
+                ].clone()
                 sorted_indices_to_remove[..., 0] = 0
-                
+
                 indices_to_remove = sorted_indices[sorted_indices_to_remove]
                 logits[indices_to_remove] = float("-inf")
-            
+
             probs = torch.softmax(logits, dim=-1)
             idx_next = torch.multinomial(probs, num_samples=1)
-            
+
             generated.append(idx_next.item())
-            
+
             idx = torch.cat([idx, idx_next.unsqueeze(0)], dim=1)
-            
+
             if eos_token_id is not None and idx_next.item() == eos_token_id:
                 break
-        
+
         return idx
 
     @torch.no_grad()

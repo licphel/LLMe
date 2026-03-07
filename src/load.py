@@ -3,7 +3,7 @@ from datasets import load_dataset
 import logging
 from pathlib import Path
 from dat import Uniset, DataFormat
-from lib import Config
+from lib import TrainCfg
 
 logger = logging.getLogger(__name__)
 
@@ -31,15 +31,17 @@ def scan(path: str) -> dict:
     print(f"   Scanning {dir}...")
 
     for file_path in dir.rglob("*"):
+        if file_path.is_dir():
+            continue
+        
         fmt = _detect(file_path)
-
         try:
             logger.info(f"Loading {file_path} as {fmt}")
             data = DataFormat.load(
                 file_path,
                 fmt,
-                seqlen=Config["max_sequence_length"],
-                stride=Config["stride"],
+                seqlen=TrainCfg["max_sequence_length"],
+                stride=TrainCfg["stride"],
             )
             cache += data
             format_stats[fmt] = format_stats.get(fmt, 0) + len(data.data)

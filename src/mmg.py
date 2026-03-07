@@ -6,10 +6,10 @@ from dat import Uniset
 from tokenizer import Tokenizer
 from model import LanguageModel
 from trainer import Trainer
-from lib import Config
 import json
 import load as load
 from pathlib import Path
+from lib import TrainCfg, ArgsCfg
 from torch.utils.data import DataLoader as TorchDataLoader
 
 logging.basicConfig(level=logging.INFO)
@@ -20,6 +20,8 @@ _current_tokenizer = None
 _current_model_name = None
 _device = "cuda" if torch.cuda.is_available() else "cpu"
 _model_dir = Basepath / "models"
+_current_cfg_train: Dict = {}
+_current_cfg_args: Dict = {}
 
 
 def train(model_name: str) -> Dict[str, Any]:
@@ -27,7 +29,26 @@ def train(model_name: str) -> Dict[str, Any]:
     print(f"Training starts: {model_name}")
     print(f"{'='*50}")
 
+    save_dir = _model_dir / model_name
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    # 0 dump jsons
+    with open(save_dir / "train.json", "w") as f:
+        json.dump(TrainCfg, f, indent=2)
+    with open(save_dir / "args.json", "w") as f:
+        json.dump(ArgsCfg, f, indent=2)
+        
+    # 0.5 read configs (for consistent logic)
+    global _current_cfg_train
+    global _current_cfg_args
+    with open(save_dir / "train.json", "r") as f:
+        _current_cfg_train = json.load(f)
+    with open(save_dir / "args.json", "r") as f:
+        _current_cfg_args = json.load(f)
+
     print("\nLoading datasets...")
+
+    # 1. prepare dataset
     uniset: Uniset = load.get_data_cache()
 
     if len(uniset.data) == 0:
@@ -73,11 +94,13 @@ def train(model_name: str) -> Dict[str, Any]:
 
     # 3. create training dataset
     print("\nCreating training dataset...")
-    dataset = uniset.to_torch_dataset(tokenizer, seq_len=Config["max_sequence_length"])
+    dataset = uniset.to_torch_dataset(
+        tokenizer, seq_len=_current_cfg_train["max_sequence_length"]
+    )
 
     train_loader = TorchDataLoader(
         dataset,
-        batch_size=Config["batch_size"],
+        batch_size=_current_cfg_train["batch_size"],
         shuffle=True,
         num_workers=2,
         persistent_workers=False,
@@ -87,10 +110,10 @@ def train(model_name: str) -> Dict[str, Any]:
     print("\nCreating model...")
     model = LanguageModel(
         vocab_size=tokenizer.vocab_size,
-        dim=Config["dimensions"],
-        n_layers=Config["layers"],
-        n_heads=Config["heads"],
-        max_seq_len=Config["max_sequence_length"],
+        dim=_current_cfg_train["dimensions"],
+        layers=_current_cfg_train["layers"],
+        heads=_current_cfg_train["heads"],
+        seqlen=_current_cfg_train["max_sequence_length"],
     )
     argc = model.count_parameters()
     print(f"  ArgCount: {argc:,}")
@@ -100,18 +123,15 @@ def train(model_name: str) -> Dict[str, Any]:
     trainer = Trainer(
         model=model,
         train_loader=train_loader,
-        lr=Config["learning_rate"],
+        lr=_current_cfg_train["learning_rate"],
         device=_device,
     )
 
-    save_dir = _model_dir / model_name
-    trainer.train(epochs=Config["epochs"], save_dir=save_dir)
+    trainer.train(epochs=_current_cfg_train["epochs"], save_dir=save_dir)
 
-    # 6. save tokenizer and Config
+    # 6. save tokenizer
     print("\nSaving model...")
     tokenizer.save(save_dir / "tokenizer.json")
-    with open(save_dir / "training_config.json", "w") as f:
-        json.dump(Config, f, indent=2)
 
     # 7. switch to new model
     global _current_model, _current_tokenizer, _current_model_name
@@ -132,47 +152,39 @@ def train(model_name: str) -> Dict[str, Any]:
     }
 
 
-def resume_train(model_name: str, additional_epochs: int):
+def resume_train(model_name: str, checkpoint_name: str, additional_epochs: int):
     print(f"\n{'='*50}")
     print(f"Resuming training: {model_name}")
     print(f"{'='*50}")
 
     # 1. check model
-    model_dir = _model_dir / model_name
-    if not model_dir.exists():
+    save_dir = _model_dir / model_name
+    if not save_dir.exists():
         raise FileNotFoundError(f"Model not found: {model_name}")
 
     # 2. load cfg
-    config_path = model_dir / "training_config.json"
-    with open(config_path, "r") as f:
-        model_config = json.load(f)
+    global _current_cfg_train
+    global _current_cfg_args
+    with open(save_dir / "train.json", "r") as f:
+        _current_cfg_train = json.load(f)
+    with open(save_dir / "args.json", "r") as f:
+        _current_cfg_args = json.load(f)
 
     # 3. load tokenizer
     tokenizer = Tokenizer()
-    tokenizer.load(model_dir / "tokenizer.json")
+    tokenizer.load(save_dir / "tokenizer.json")
 
     # 4. recreate model
     model = LanguageModel(
         vocab_size=tokenizer.vocab_size,
-        dim=model_config.get("dimensions", Config["dimensions"]),
-        n_layers=model_config.get("layers", Config["layers"]),
-        n_heads=model_config.get("heads", Config["heads"]),
-        max_seq_len=model_config.get(
-            "max_sequence_length", Config["max_sequence_length"]
-        ),
+        dim=_current_cfg_train["dimensions"],
+        layers=_current_cfg_train["layers"],
+        heads=_current_cfg_train["heads"],
+        seqlen=_current_cfg_train["max_sequence_length"],
     )
 
     # 5. load pts
-    checkpoint_path: Path = Path()
-
-    interrupted_files = list(model_dir.glob("interrupted_epoch_*.pt"))
-    if interrupted_files:
-        # find newest
-        checkpoint_path = max(interrupted_files, key=lambda p: p.stat().st_mtime)
-    elif (model_dir / "final.pt").exists():
-        checkpoint_path = model_dir / "final.pt"
-    elif (model_dir / "best.pt").exists():
-        checkpoint_path = model_dir / "best.pt"
+    checkpoint_path: Path = Path(save_dir / checkpoint_name)
 
     print(f"   Loading checkpoint: {checkpoint_path}")
     checkpoint = torch.load(checkpoint_path, map_location=_device)
@@ -202,12 +214,12 @@ def resume_train(model_name: str, additional_epochs: int):
     # 7. recreate dataset and loader
     print("\nCreating training dataset...")
     dataset = uniset.to_torch_dataset(
-        tokenizer, seq_len=model_config["max_sequence_length"]
+        tokenizer, seq_len=_current_cfg_train["max_sequence_length"]
     )
 
     train_loader = TorchDataLoader(
         dataset,
-        batch_size=model_config["batch_size"],
+        batch_size=_current_cfg_train["batch_size"],
         shuffle=True,
         num_workers=2,
         persistent_workers=False,
@@ -228,7 +240,7 @@ def resume_train(model_name: str, additional_epochs: int):
     trainer = Trainer(
         model=model,
         train_loader=train_loader,
-        lr=model_config["learning_rate"],
+        lr=_current_cfg_train["learning_rate"],
         device=_device,
     )
 
@@ -243,14 +255,14 @@ def resume_train(model_name: str, additional_epochs: int):
         print(f"   Loaded optimizer state, resuming from step {trainer.step}")
 
     # 10. resume train
-    trainer.train(
-        epochs=target_epochs, save_dir=model_dir, resume_from=completed_epochs
-    )
+    trainer.train(epochs=target_epochs, save_dir=save_dir, resume_from=completed_epochs)
 
-    # 11. update epochs
-    model_config["epochs"] = target_epochs
-    with open(config_path, "w") as f:
-        json.dump(model_config, f, indent=2)
+    # 11. update epochs & write configs
+    _current_cfg_train["epochs"] = target_epochs
+    with open(save_dir / "train.json", "w") as f:
+        json.dump(_current_cfg_train, f, indent=2)
+    with open(save_dir / "args.json", "w") as f:
+        json.dump(_current_cfg_args, f, indent=2)
 
     # 12. switch to new model
     global _current_model, _current_tokenizer, _current_model_name
@@ -276,25 +288,29 @@ def resume_train(model_name: str, additional_epochs: int):
 def switch(model_name):
     global _current_model, _current_tokenizer, _current_model_name
 
-    model_dir = Basepath / "models" / model_name
-    if not model_dir.exists():
+    save_dir = Basepath / "models" / model_name
+    if not save_dir.exists():
         raise FileNotFoundError(f"Model not found: {model_name}")
 
     tokenizer = Tokenizer()
-    tokenizer.load(model_dir / "tokenizer.json")
+    tokenizer.load(save_dir / "tokenizer.json")
 
-    with open(model_dir / "training_config.json", "r") as f:
-        Config = json.load(f)
+    global _current_cfg_train
+    global _current_cfg_args
+    with open(save_dir / "train.json", "r") as f:
+        _current_cfg_train = json.load(f)
+    with open(save_dir / "args.json", "r") as f:
+        _current_cfg_args = json.load(f)
 
     model = LanguageModel(
         vocab_size=tokenizer.vocab_size,
-        dim=Config["dimensions"],
-        n_layers=Config["layers"],
-        n_heads=Config["heads"],
-        max_seq_len=Config["max_sequence_length"],
+        dim=_current_cfg_train["dimensions"],
+        layers=_current_cfg_train["layers"],
+        heads=_current_cfg_train["heads"],
+        seqlen=_current_cfg_train["max_sequence_length"],
     )
 
-    checkpoint = torch.load(model_dir / "best.pt", map_location=_device)
+    checkpoint = torch.load(save_dir / "best.pt", map_location=_device)
     if "model_state_dict" in checkpoint:
         model.load_state_dict(checkpoint["model_state_dict"])
     else:
@@ -318,7 +334,9 @@ def chat(prompt):
         return
 
     input_text = f"<user>{prompt}<assistant>"
-    response = _generate_text(_current_model, _current_tokenizer, input_text)
+    response = _generate_text(
+        _current_model, _current_tokenizer, input_text, _current_cfg_args
+    )
 
     print(response)
     return response
@@ -332,7 +350,7 @@ def list_models():
 
 
 # utility method to generate text
-def _generate_text(model, tokenizer, prompt):
+def _generate_text(model, tokenizer, prompt, argscfg):
     model.to(_device)
     model.eval()
 
@@ -343,11 +361,11 @@ def _generate_text(model, tokenizer, prompt):
     with torch.no_grad():
         output_ids = model.generate(
             input_tensor,
-            max_new_tokens=Config["max_tokens"],
-            temperature=Config["temperature"],
-            top_k=Config["top_k"],
-            top_p=Config["top_p"],
-            repetition_penalty=Config["repetition_penalty"],
+            max_new_tokens=argscfg["max_tokens"],
+            temperature=argscfg["temperature"],
+            top_k=argscfg["top_k"],
+            top_p=argscfg["top_p"],
+            repetition_penalty=argscfg["repetition_penalty"],
             eos_token_id=tokenizer.eos_id,
         )
 
