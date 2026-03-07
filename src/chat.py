@@ -34,7 +34,7 @@ def handle_commands(user_input: str):
     # /help
     if user_input.startswith("/help"):
         print("[!] '/quit' to exit.")
-        print("[!] '/switch <Model Name>' to switch between models.")
+        print("[!] '/switch <Model Name> [Checkpoint Name]' to switch between models.")
         print(
             "[!] '/load <Relative Path>' to scan all datasets in the given directory."
         )
@@ -50,16 +50,18 @@ def handle_commands(user_input: str):
         print("[!] LLMe CLI exited.")
         exit(0)
 
-    # /switch <name>
-    if user_input.startswith("/switch "):
-        datpath = user_input[8:].strip()
+    # /switch <name> [checkpoint5]
+    if user_input.startswith("/switch"):
+        parts = user_input.split()
+        if len(parts) < 2:
+            print("[!] Usage: /switch <Model Name> [Checkpoint Name]")
 
-        if not datpath:
+        if not parts[1]:
             print("[!] Please specify a model name. Usage: /switch <Model Name>")
 
         try:
-            mmg.switch(datpath)
-            print(f"[!] Successfully switched to {datpath}")
+            mmg.switch(parts[1], None if len(parts) == 2 else parts[2])
+            print(f"[!] Successfully switched to {parts[1]}")
         except Exception as e:
             print(f"[!] Failed to switch model: {e}")
 

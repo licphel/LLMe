@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 
 
 # MOSS .json data loader.
-# TODO: Dialog support
 class MossLoader(DataLoader):
     def _collect(self, path: Path) -> int:
         try:
@@ -32,7 +31,7 @@ class MossLoader(DataLoader):
                 return 0
 
             conversation = item["conversation"]
-            formatted_dialogue = ""
+            dialog = []
             turn_count = 0
 
             for turn_key in sorted(conversation.keys()):
@@ -42,24 +41,19 @@ class MossLoader(DataLoader):
                 turn = conversation[turn_key]
 
                 if "Human" in turn:
-                    formatted_dialogue += f"[User] {turn['Human']}\n"
+                    dialog.append({"role": "user", "content": turn["Human"]})
                 if "MOSS" in turn:
-                    formatted_dialogue += f"[Assistant] {turn['MOSS']}\n"
+                    dialog.append({"role": "assistant", "content": turn["MOSS"]})
                     turn_count += 1
 
             if turn_count > 0:
-                formatted_dialogue += "[Assistant]"
-
-                self.append_text(
-                    {
-                        "text": formatted_dialogue,
-                        "source": f"{path.name}:{item.get('conversation_id', 'unknown')}",
-                        "type": "sft",
-                        "turns": turn_count,
-                        "category": item.get("category", "unknown"),
-                    }
-                )
-
+                self.append_text({
+                    "dialog": dialog,
+                    "source": f"{path.name}:{item.get('conversation_id', 'unknown')}",
+                    "type": "sft",
+                    "turns": turn_count,
+                    "category": item.get("category", "unknown"),
+                })
                 return turn_count
 
         except Exception as e:

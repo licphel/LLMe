@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 
 
 # ShareGPT .json data loader.
-# TODO: Dialog support
 class ShareGPTLoader(DataLoader):
     def _collect(self, path: Path) -> int:
         try:
@@ -30,34 +29,31 @@ class ShareGPTLoader(DataLoader):
             if "conversations" not in item:
                 return 0
 
-            formatted = ""
+            dialog = []
             turn_count = 0
 
             if "system" in item and item["system"]:
-                formatted += f"[System] {item['system']}\n"
+                dialog.append({"role": "system", "content": item["system"]})
 
             for conv in item["conversations"]:
                 role = conv.get("from", "")
                 value = conv.get("value", "")
 
-                if role == "human":
-                    formatted += f"[User] {value}\n"
-                elif role == "gpt":
-                    formatted += f"[Assistant] {value}\n"
+                if role == "human" or role == "user":
+                    dialog.append({"role": "user", "content": value})
+                elif role == "gpt" or role == "assistant" or role == "bot":
+                    dialog.append({"role": "assistant", "content": value})
                     turn_count += 1
                 elif role == "system":
-                    formatted += f"[System] {value}\n"
+                    dialog.append({"role": "system", "content": value})
 
             if turn_count > 0:
-                formatted += "[Assistant]"
-                self.append_text(
-                    {
-                        "text": formatted,
-                        "source": f"{path.name}:{idx}",
-                        "type": "sft",
-                        "turns": turn_count,
-                    }
-                )
+                self.append_text({
+                    "dialog": dialog,
+                    "source": f"{path.name}:{idx}",
+                    "type": "sft",
+                    "turns": turn_count,
+                })
                 return turn_count
 
         except Exception as e:

@@ -285,7 +285,7 @@ def resume_train(model_name: str, checkpoint_name: str, additional_epochs: int):
     }
 
 
-def switch(model_name):
+def switch(model_name, checkpoint_name):
     global _current_model, _current_tokenizer, _current_model_name
 
     save_dir = Basepath / "models" / model_name
@@ -310,7 +310,7 @@ def switch(model_name):
         seqlen=_current_cfg_train["max_sequence_length"],
     )
 
-    checkpoint = torch.load(save_dir / "best.pt", map_location=_device)
+    checkpoint = torch.load(save_dir / (checkpoint_name or "best.pt"), map_location=_device)
     if "model_state_dict" in checkpoint:
         model.load_state_dict(checkpoint["model_state_dict"])
     else:
