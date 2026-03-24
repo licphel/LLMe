@@ -1,5 +1,6 @@
 import logging
 from typing import List, Dict
+
 import torch
 from torch.utils.data import Dataset
 
@@ -46,7 +47,7 @@ class Uniset:
             else:
                 # cut too long dialog.
                 for i in range(0, len(tokens) - seq_len, stride):
-                    chunk = tokens[i : i + seq_len + 1]
+                    chunk = tokens[i: i + seq_len + 1]
                     if len(chunk) == seq_len + 1:
                         input_ids = chunk[:-1]
                         target_ids = chunk[1:]
@@ -58,6 +59,10 @@ class Uniset:
     def _create_loss_mask(self, tokens, tokenizer):
         mask = [0] * len(tokens)
         in_assistant = False
+
+        # pretain: text only
+        if tokenizer.user_id not in tokens and tokenizer.assistant_id not in tokens:
+            return [1] * len(tokens)
 
         for i, token in enumerate(tokens):
             if token == tokenizer.assistant_id:

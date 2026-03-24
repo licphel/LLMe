@@ -1,16 +1,18 @@
-import torch
-import logging
-from typing import Dict, Any
-from lib.basepath import Basepath
-from dat import Uniset
-from tokenizer import Tokenizer
-from model import LanguageModel
-from trainer import Trainer
 import json
-import load as load
+import logging
 from pathlib import Path
-from lib import TrainCfg, ArgsCfg
+from typing import Dict, Any
+
+import torch
 from torch.utils.data import DataLoader as TorchDataLoader
+
+import load as load
+from dat import Uniset
+from model import byname
+from tokenizer import Tokenizer
+from trainer import Trainer
+from util import TRAIN_CFG, ARG_CFG
+from util.basepath import Basepath
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,19 +27,19 @@ _current_cfg_args: Dict = {}
 
 
 def train(model_name: str) -> Dict[str, Any]:
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"Training starts: {model_name}")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
 
     save_dir = _model_dir / model_name
     save_dir.mkdir(parents=True, exist_ok=True)
 
     # 0 dump jsons
     with open(save_dir / "train.json", "w") as f:
-        json.dump(TrainCfg, f, indent=2)
+        json.dump(TRAIN_CFG, f, indent=2)
     with open(save_dir / "args.json", "w") as f:
-        json.dump(ArgsCfg, f, indent=2)
-        
+        json.dump(ARG_CFG, f, indent=2)
+
     # 0.5 read configs (for consistent logic)
     global _current_cfg_train
     global _current_cfg_args
@@ -108,13 +110,16 @@ def train(model_name: str) -> Dict[str, Any]:
 
     # 4. create model
     print("\nCreating model...")
-    model = LanguageModel(
+    model = byname(_current_cfg_train["architecture"])(
         vocab_size=tokenizer.vocab_size,
         dim=_current_cfg_train["dimensions"],
         layers=_current_cfg_train["layers"],
         heads=_current_cfg_train["heads"],
         seqlen=_current_cfg_train["max_sequence_length"],
+        dropout=_current_cfg_train["dropout"]
     )
+    torch.compile(model, mode="reduce-overhead")
+
     argc = model.count_parameters()
     print(f"  ArgCount: {argc:,}")
 
@@ -139,10 +144,10 @@ def train(model_name: str) -> Dict[str, Any]:
     _current_tokenizer = tokenizer
     _current_model_name = model_name
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"{model_name} training done！")
     print(f"  Saved at: {save_dir}")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
 
     return {
         "model_name": model_name,
@@ -153,9 +158,9 @@ def train(model_name: str) -> Dict[str, Any]:
 
 
 def resume_train(model_name: str, checkpoint_name: str, additional_epochs: int):
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"Resuming training: {model_name}")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
 
     # 1. check model
     save_dir = _model_dir / model_name
@@ -175,13 +180,15 @@ def resume_train(model_name: str, checkpoint_name: str, additional_epochs: int):
     tokenizer.load(save_dir / "tokenizer.json")
 
     # 4. recreate model
-    model = LanguageModel(
+    model = byname(_current_cfg_train["architecture"])(
         vocab_size=tokenizer.vocab_size,
         dim=_current_cfg_train["dimensions"],
         layers=_current_cfg_train["layers"],
         heads=_current_cfg_train["heads"],
         seqlen=_current_cfg_train["max_sequence_length"],
+        dropout=_current_cfg_train["dropout"]
     )
+    torch.compile(model, mode="reduce-overhead")
 
     # 5. load pts
     checkpoint_path: Path = Path(save_dir / checkpoint_name)
@@ -270,11 +277,11 @@ def resume_train(model_name: str, checkpoint_name: str, additional_epochs: int):
     _current_tokenizer = tokenizer
     _current_model_name = model_name
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"Resume training completed!")
     print(f"  Model: {model_name}")
     print(f"  Total epochs: {target_epochs}")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
 
     return {
         "model_name": model_name,
@@ -302,15 +309,18 @@ def switch(model_name, checkpoint_name):
     with open(save_dir / "args.json", "r") as f:
         _current_cfg_args = json.load(f)
 
-    model = LanguageModel(
+    model = byname(_current_cfg_train["architecture"])(
         vocab_size=tokenizer.vocab_size,
         dim=_current_cfg_train["dimensions"],
         layers=_current_cfg_train["layers"],
         heads=_current_cfg_train["heads"],
         seqlen=_current_cfg_train["max_sequence_length"],
+        dropout=_current_cfg_train["dropout"]
     )
 
-    checkpoint = torch.load(save_dir / (checkpoint_name or "best.pt"), map_location=_device)
+    checkpoint = torch.load(
+        save_dir / (checkpoint_name or "best.pt"), map_location=_device
+    )
     if "model_state_dict" in checkpoint:
         model.load_state_dict(checkpoint["model_state_dict"])
     else:

@@ -1,13 +1,14 @@
-from pathlib import Path
-from .loader import DataLoader
-from .ext_txt import TextLoader
-from .ext_moss import MossLoader
-from .ext_sgpt import ShareGPTLoader
-from .ext_alpaca import AlpacaLoader
-from .ext_hf import HuggingFaceFetcher
 import logging
-from .uniset import Uniset
+from pathlib import Path
 from typing import Type, Optional
+
+from ._hugging_face import HuggingFaceFetcher
+from ._alpaca import AlpacaLoader
+from ._moss import MossLoader
+from ._share_gpt import ShareGPTLoader
+from ._txt import TextLoader
+from .loader import DataLoader
+from .uniset import Uniset
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +48,12 @@ class DataFormat:
     # loads a dataset from HuggingFace.
     @staticmethod
     def load_huggingface(
-        dataset_path: str,
-        name: Optional[str] = None,
-        split: str = "train",
-        seqlen: int = 256,
-        stride=None,
-        **kwargs,
+            dataset_path: str,
+            name: Optional[str] = None,
+            split: str = "train",
+            seqlen: int = 256,
+            stride=None,
+            **kwargs,
     ) -> Uniset:
         loader = HuggingFaceFetcher(seqlen, stride)
         loader.load_hf(dataset_path, name=name, split=split, **kwargs)

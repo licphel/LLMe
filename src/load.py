@@ -1,9 +1,11 @@
-from lib.basepath import Basepath
-from datasets import load_dataset
 import logging
 from pathlib import Path
+
+from datasets import load_dataset
+
 from dat import Uniset, DataFormat
-from lib import TrainCfg
+from util import TRAIN_CFG
+from util.basepath import Basepath
 
 logger = logging.getLogger(__name__)
 
@@ -33,15 +35,15 @@ def scan(path: str) -> dict:
     for file_path in dir.rglob("*"):
         if file_path.is_dir():
             continue
-        
+
         fmt = _detect(file_path)
         try:
             logger.info(f"Loading {file_path} as {fmt}")
             data = DataFormat.load(
                 file_path,
                 fmt,
-                seqlen=TrainCfg["max_sequence_length"],
-                stride=TrainCfg["stride"],
+                seqlen=TRAIN_CFG["max_sequence_length"],
+                stride=TRAIN_CFG["stride"],
             )
             cache += data
             format_stats[fmt] = format_stats.get(fmt, 0) + len(data.data)
@@ -63,7 +65,7 @@ def _detect(file_path: Path) -> str:
 
     suffix = file_path.suffix.lower()
     if suffix == ".txt":
-        fmt = "txt"
+        return "txt"
     elif suffix in [".json", ".jsonl"]:
         try:
             import json

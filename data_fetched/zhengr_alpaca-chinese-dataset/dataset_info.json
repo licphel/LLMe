@@ -1,0 +1,7 @@
+{
+  "dataset": "zhengr/alpaca-chinese-dataset",
+  "splits": [
+    "train"
+  ],
+  "total_samples": 1000
+}

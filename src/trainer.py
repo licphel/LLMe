@@ -1,11 +1,10 @@
 import shutil
-import sys
+import signal
+import time
+from pathlib import Path
 
 import torch
 from torch.utils.data import Dataset
-import time
-from pathlib import Path
-import signal
 
 
 class Trainer:
@@ -34,7 +33,7 @@ class Trainer:
         self.min_delta = 0.01
         self.best_loss = float("inf")
         self.wait = 0
-        
+
         self.printer = TrainerPrinter()
 
         # ctrl+c early stop and save.
@@ -91,7 +90,7 @@ class Trainer:
                 if p.grad is not None:
                     param_norm = p.grad.data.norm(2)
                     total_grad_norm += param_norm.item() ** 2
-            total_grad_norm = total_grad_norm**0.5
+            total_grad_norm = total_grad_norm ** 0.5
 
             self.optimizer.step()
 
@@ -123,7 +122,7 @@ class Trainer:
                 for p in self.model.parameters():
                     param_norm = p.data.norm(2)
                     total_param_norm += param_norm.item() ** 2
-                total_param_norm = total_param_norm**0.5
+                total_param_norm = total_param_norm ** 0.5
 
                 grad_param_ratio = avg_grad / (total_param_norm + 1e-8)
 
@@ -141,7 +140,7 @@ class Trainer:
                     'progress': batch_idx,
                     'total': len(self.train_loader)
                 }
-                
+
                 self.printer.print_status(status_dict)
 
             self.step += 1
@@ -171,7 +170,7 @@ class Trainer:
                 self.save_model(f"{save_dir}/interrupted_epoch_{epoch}.pt")
                 break
 
-            print(f"\n Epoch {epoch+1}/{epochs}")
+            print(f"\n Epoch {epoch + 1}/{epochs}")
 
             avg_loss = self.train_epoch()
             print(f"\n   Avg loss: {avg_loss:.4f}")
@@ -182,12 +181,12 @@ class Trainer:
                 print(f"   Best saved (loss={avg_loss:.4f})")
 
             if (epoch + 1) % 5 == 0:
-                self.save_model(f"{save_dir}/epoch_{epoch+1}.pt")
-                print(f"   Checkpoint saved at epoch {epoch+1}")
+                self.save_model(f"{save_dir}/epoch_{epoch + 1}.pt")
+                print(f"   Checkpoint saved at epoch {epoch + 1}")
 
             if self.check_early_stopping(avg_loss):
-                print(f"\nEarly stopping triggered at epoch {epoch+1}")
-                self.save_model(f"{save_dir}/early_stop_epoch_{epoch+1}.pt")
+                print(f"\nEarly stopping triggered at epoch {epoch + 1}")
+                self.save_model(f"{save_dir}/early_stop_epoch_{epoch + 1}.pt")
                 break
 
         if not self.stop_training:
@@ -228,15 +227,15 @@ class Trainer:
         self.epoch = checkpoint["epoch"]
         self.losses = checkpoint["losses"]
         self.best_loss = checkpoint.get("best_loss", float("inf"))
-        
-        
+
+
 class TrainerPrinter:
     def __init__(self):
         self.last_line_length = 0
-        
+
     def print_status(self, d):
         terminal_width = shutil.get_terminal_size().columns
-        
+
         status = (
             f"\r| S={d['step']:<6} "
             f"| L={d['loss']:<6.4f}({d['avg_loss']:<6.4f}) "
@@ -247,8 +246,9 @@ class TrainerPrinter:
             f"| G/P={d['gp_ratio']:<.3f} "
             f"| {d['speed']:<4.1f}sp/s "
             f"| {d['progress']:<4}/{d['total']} "
+            f"| RT={((d['total'] - d['progress']) / d['speed'] / 60 / 60):<4.2f}H"
         )
 
         print(status)
-       
+
         self.last_line_length = len(status)

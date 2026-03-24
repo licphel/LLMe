@@ -1,12 +1,15 @@
 import json
-from lib.basepath import Basepath
-from datasets import load_dataset
 import logging
 from pathlib import Path
+
+from datasets import load_dataset
+
+from util.basepath import Basepath
 
 logger = logging.getLogger(__name__)
 
 _fetch_dir = Basepath / "data_fetched"
+
 
 # fetches a huggingface dataset to ..program/data_fetched/
 def fetch_huggingface(dataset_name: str, split: str = "all") -> dict:

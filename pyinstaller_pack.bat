@@ -1,0 +1,1 @@
+pyinstaller --onefile --hidden-import=torch --hidden-import=torch._C --hidden-import=torch.utils.data --hidden-import=torch.nn --hidden-import=torch.nn.functional src/chat.py

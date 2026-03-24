@@ -1,6 +1,6 @@
-import mmg as mmg
 import fetch as fetch
 import load as load
+import mmg as mmg
 
 
 def main():

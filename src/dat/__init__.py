@@ -1,10 +1,10 @@
-from .loader import DataLoader
+from ._alpaca import AlpacaLoader
+from ._hugging_face import HuggingFaceFetcher
+from ._moss import MossLoader
+from ._share_gpt import ShareGPTLoader
+from ._txt import TextLoader
 from .fmt import DataFormat
-from .ext_txt import TextLoader
-from .ext_moss import MossLoader
-from .ext_sgpt import ShareGPTLoader
-from .ext_alpaca import AlpacaLoader
-from .ext_hf import HuggingFaceFetcher
+from .loader import DataLoader
 from .uniset import Uniset
 
 __all__ = [
